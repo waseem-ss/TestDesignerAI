@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class LLMResponse:
     """Structured response from LLM"""
 
-    def __init__(self, content: str, model: str, tokens_used: int, confidence: float = None):
+    def __init__(self, content: str, model: str, tokens_used: int, confidence: Optional[float] = None):
         self.content = content
         self.model = model
         self.tokens_used = tokens_used
@@ -83,11 +83,13 @@ class BaseLLMModel(ABC):
                 else:
                     raise
 
+        raise RuntimeError("API call failed without an available retry")
+
     def _mock_api_response(self, prompt: str) -> str:
         """Generate mock response for demonstration"""
         return f"Generated response based on: {prompt[:50]}..."
 
-    def get_statistics(self) -> Dict[str, int]:
+    def get_statistics(self) -> Dict[str, Any]:
         """Get API usage statistics"""
         return {
             'call_count': self.call_count,

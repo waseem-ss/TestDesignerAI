@@ -1,0 +1,146 @@
+# Claude Code and AI Tools
+.claude/
+claude_*.md
+*.claude-*
+.claude-memory/
+memory/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual Environments
+.env
+*.venv
+venv/
+ENV/
+env/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+*.iml
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Project-specific directories (auto-generated)
+logs/
+output/
+*.log
+*.pyc
+
+# Data files (optional - uncomment if needed)
+data/
+# datasets/
+
+# Model files (optional - uncomment if needed)
+# models/
+# weights/
+
+# OS
+.DS_Store
+Thumbs.db
+.swp
+.swo
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.temp
+*_backup/
+.tmp/
+
+# Node/npm (if using any frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE specific
+.vscode/settings.json
+.vscode/launch.json
+
+# OS specific
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Large files (optional)
+*.zip
+*.tar.gz
+*.rar
