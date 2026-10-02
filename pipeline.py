@@ -5,7 +5,7 @@ from the literature review
 """
 
 from typing import Dict, List, Tuple, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from config import (
     AppConfig, ModelType, RETaskType, ModelConfig,
@@ -43,11 +43,11 @@ class ProcessingResult:
     extraction_result: Optional[Dict[str, Any]] = None
     classification_result: Optional[Dict[str, Any]] = None
     quality_assessment: Optional[Dict[str, Any]] = None
-    test_cases: Optional[List[str]] = None
+    test_cases: Optional[List[str]] = field(default_factory=list)
     human_review_required: bool = False
     review_notes: Optional[str] = None
-    confidence_scores: Optional[Dict[str, float]] = None
-    errors: Optional[List[str]] = None
+    confidence_scores: Dict[str, float] = field(default_factory=dict)
+    errors: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         """Convert to dictionary"""
