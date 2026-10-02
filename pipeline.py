@@ -40,14 +40,14 @@ class ProcessingResult:
     requirement_id: str
     input_text: str
     status: ProcessingStatus
-    extraction_result: Dict[str, Any] = None
-    classification_result: Dict[str, Any] = None
-    quality_assessment: Dict[str, Any] = None
-    test_cases: List[str] = None
+    extraction_result: Optional[Dict[str, Any]] = None
+    classification_result: Optional[Dict[str, Any]] = None
+    quality_assessment: Optional[Dict[str, Any]] = None
+    test_cases: Optional[List[str]] = None
     human_review_required: bool = False
-    review_notes: str = None
-    confidence_scores: Dict[str, float] = None
-    errors: List[str] = None
+    review_notes: Optional[str] = None
+    confidence_scores: Optional[Dict[str, float]] = None
+    errors: Optional[List[str]] = None
 
     def to_dict(self) -> Dict:
         """Convert to dictionary"""
