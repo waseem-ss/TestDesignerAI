@@ -4,7 +4,7 @@ Implements metrics from literature review: F1, Precision, Recall, BLEU, ROUGE, C
 """
 
 import json
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
 import numpy as np
 from logger import get_logger
@@ -18,9 +18,9 @@ class EvaluationMetrics:
     precision: float
     recall: float
     f1_score: float
-    accuracy: float = None
-    confidence_score: float = None
-    additional_metrics: Dict[str, float] = None
+    accuracy: Optional[float] = None
+    confidence_score: Optional[float] = None
+    additional_metrics: Optional[Dict[str, float]] = None
 
     def to_dict(self) -> Dict[str, float]:
         """Convert to dictionary"""
@@ -305,7 +305,7 @@ class QualityAssessmentMetrics:
         return 1.0 - min(ambiguity_count * 0.1, 1.0)
 
     @staticmethod
-    def overall_quality_score(requirement: str, requirements_list: List[str] = None) -> float:
+    def overall_quality_score(requirement: str, requirements_list: Optional[List[str]] = None) -> float:
         """
         Calculate overall quality score (0-1)
         Combines completeness, clarity, and consistency
