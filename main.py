@@ -70,14 +70,42 @@ def main():
 
     print("\n")
 
-    # Example 3: Load and process dataset
-    print("Example 3: Load and Process Dataset (Requirements Classification)")
+    # Example 3.1: Load and process dataset Classification
+    print("Example 3.1: Load and Process Dataset (Requirements Classification)")
     print("-" * 80)
 
     dataset_results = pipeline.load_and_process_dataset(DatasetConfig.PROMISE)
     print(f"\nLoaded and processed {len(dataset_results)} samples from PROMISE dataset")
 
     print("\n")
+
+    # Example 3.2: Load and process dataset Extraction
+    print("Example 3.2: Load and Process Dataset (Requirements Extraction)")
+    print("-" * 80)
+
+    dataset_results = pipeline.load_and_process_dataset(DatasetConfig.PURE)
+    print(f"\nLoaded and processed {len(dataset_results)} samples from PURE dataset")
+
+    print("\n")
+
+    # Example 3.3: Load and process dataset Extraction
+    print("Example 3.3: Load and Process Dataset (NER)")
+    print("-" * 80)
+
+    dataset_results = pipeline.load_and_process_dataset(DatasetConfig.AEROSPACE)
+    print(f"\nLoaded and processed {len(dataset_results)} samples from AEROSPACE dataset")
+
+    print("\n")
+
+    # Example 3.4: Load and process dataset Question Answering
+    print("Example 3.4: Load and Process Dataset (Question Answering)")
+    print("-" * 80)
+
+    dataset_results = pipeline.load_and_process_dataset(DatasetConfig.REQUESTQA)
+    print(f"\nLoaded and processed {len(dataset_results)} samples from REQUESTQA dataset")
+
+    print("\n")
+
 
     # Example 4: Generate report
     print("Example 4: Pipeline Report and Statistics")

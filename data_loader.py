@@ -296,6 +296,8 @@ class AerospaceDataLoader(DataLoader):
         """Preprocess Aerospace dataset"""
         if self.data is None:
             self.load()
+        if self.data is None:
+            raise RuntimeError("Aerospace dataset could not be loaded")
 
         processed_data = []
         for item in self.data:
@@ -331,17 +333,20 @@ class AerospaceDataLoader(DataLoader):
         """Split Aerospace dataset"""
         if self.data is None:
             self.preprocess()
+        data = self.data
+        if data is None:
+            raise RuntimeError("Aerospace dataset is not available for splitting")
 
         np.random.seed(random_state)
-        indices = np.arange(len(self.data))
+        indices = np.arange(len(data))
         np.random.shuffle(indices)
 
-        test_idx = int(len(self.data) * test_size)
-        val_idx = int(len(self.data) * (test_size + val_size))
+        test_idx = int(len(data) * test_size)
+        val_idx = int(len(data) * (test_size + val_size))
 
-        test_data = [self.data[i] for i in indices[:test_idx]]
-        val_data = [self.data[i] for i in indices[test_idx:val_idx]]
-        train_data = [self.data[i] for i in indices[val_idx:]]
+        test_data = [data[i] for i in indices[:test_idx]]
+        val_data = [data[i] for i in indices[test_idx:val_idx]]
+        train_data = [data[i] for i in indices[val_idx:]]
 
         self.logger.info(f"Data split - Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
         return train_data, val_data, test_data
@@ -388,6 +393,8 @@ class REQuestADataLoader(DataLoader):
         """Preprocess REQuestA dataset"""
         if self.data is None:
             self.load()
+        if self.data is None:
+            raise RuntimeError("REQuestA dataset could not be loaded")
 
         processed_data = []
         for item in self.data:
@@ -425,17 +432,20 @@ class REQuestADataLoader(DataLoader):
         """Split REQuestA dataset"""
         if self.data is None:
             self.preprocess()
+        data = self.data
+        if data is None:
+            raise RuntimeError("REQuestA dataset is not available for splitting")
 
         np.random.seed(random_state)
-        indices = np.arange(len(self.data))
+        indices = np.arange(len(data))
         np.random.shuffle(indices)
 
-        test_idx = int(len(self.data) * test_size)
-        val_idx = int(len(self.data) * (test_size + val_size))
+        test_idx = int(len(data) * test_size)
+        val_idx = int(len(data) * (test_size + val_size))
 
-        test_data = [self.data[i] for i in indices[:test_idx]]
-        val_data = [self.data[i] for i in indices[test_idx:val_idx]]
-        train_data = [self.data[i] for i in indices[val_idx:]]
+        test_data = [data[i] for i in indices[:test_idx]]
+        val_data = [data[i] for i in indices[test_idx:val_idx]]
+        train_data = [data[i] for i in indices[val_idx:]]
 
         self.logger.info(f"Data split - Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
         return train_data, val_data, test_data

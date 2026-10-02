@@ -43,7 +43,7 @@ class ProcessingResult:
     extraction_result: Optional[Dict[str, Any]] = None
     classification_result: Optional[Dict[str, Any]] = None
     quality_assessment: Optional[Dict[str, Any]] = None
-    test_cases: Optional[List[str]] = field(default_factory=list)
+    test_cases: List[str] = field(default_factory=list)
     human_review_required: bool = False
     review_notes: Optional[str] = None
     confidence_scores: Dict[str, float] = field(default_factory=dict)
@@ -320,7 +320,15 @@ class REPipeline:
                     requirements.append((f"req_{idx}", text))
             else:  # List or other format
                 for i, item in enumerate(data_to_process):
-                    text = item.get('text') if isinstance(item, dict) else str(item)
+                    if isinstance(item, dict):
+                        text = (
+                            item.get('text')
+                            or item.get('requirement')
+                            or item.get('context')
+                            or ''
+                        )
+                    else:
+                        text = str(item)
                     requirements.append((f"req_{i}", text))
 
             return self.process_batch(requirements)

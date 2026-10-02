@@ -341,13 +341,13 @@ class ModelFactory:
         return model_class(model_config)
 
     @staticmethod
-    def create_best_model_for_task(task_type) -> BaseLLMModel:
-        """Create best model for specific task"""
-        if task_type.value == "question_answering":
+    def create_best_model_for_task(task_type: Any) -> BaseLLMModel:
+        """Create best model for a task represented by an enum or string."""
+        task_value = getattr(task_type, 'value', task_type)
+
+        if task_value == "question_answering":
             return ModelFactory.create_model(ModelType.GPT_4O)
-        elif task_type.value == "classification":
-            return ModelFactory.create_model(ModelType.BERT)
-        elif task_type.value == "ner":
+        elif task_value in ("extraction", "classification", "ner"):
             return ModelFactory.create_model(ModelType.BERT)
         else:
             return ModelFactory.create_model(ModelType.GPT_4O)

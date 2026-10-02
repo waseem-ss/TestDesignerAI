@@ -4,6 +4,7 @@ claude_*.md
 *.claude-*
 .claude-memory/
 memory/
+Claude outputs/
 
 # Environment & Secrets
 .env
