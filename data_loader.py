@@ -186,6 +186,9 @@ class PROMISEDataLoader(DataLoader):
 
         df = self.data.copy()
 
+        if 'requirement_type' in df.columns and 'type' not in df.columns:
+            df = df.rename(columns={'requirement_type': 'type'})
+
         # Remove duplicates
         df = df.drop_duplicates(subset=['requirement_text'], keep='first')
 
