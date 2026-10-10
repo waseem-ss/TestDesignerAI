@@ -6,6 +6,7 @@ Datasets: Pure, PROMISE, Aerospace, REQuestA
 
 import os
 import json
+import csv
 import pandas as pd
 import numpy as np
 from typing import Tuple, List, Dict, Any, Union
@@ -84,6 +85,9 @@ class PureDataLoader(DataLoader):
             self.load()
 
         df = self.data.copy()
+
+        if 'requirement_text' in df.columns and 'source_text' not in df.columns:
+            df = df.rename(columns={'requirement_text': 'source_text'})
 
         # Remove duplicates
         df = df.drop_duplicates(subset=['source_text'], keep='first')
@@ -271,8 +275,34 @@ class AerospaceDataLoader(DataLoader):
                 self.logger.warning(f"Aerospace dataset not found at {self.config.path}")
                 return self._create_placeholder_data()
 
-            with open(self.config.path, 'r') as f:
-                self.data = json.load(f)
+            with open(self.config.path, 'r', encoding='utf-8-sig', newline='') as dataset_file:
+                if os.path.splitext(self.config.path)[1].lower() in ('.csv', '.txt'):
+                    reader = csv.DictReader(dataset_file)
+                    required_columns = {'requirement_id', 'requirement_text', 'entity_type', 'entity_value'}
+                    if not required_columns.issubset(reader.fieldnames or []):
+                        raise ValueError("Aerospace CSV is missing required columns")
+
+                    samples = []
+                    for row in reader:
+                        text = row['requirement_text']
+                        entity_text = row['entity_value']
+                        start = text.find(entity_text)
+                        if not entity_text or start < 0:
+                            raise ValueError(f"Entity not found in Aerospace requirement {row['requirement_id']}")
+                        samples.append({
+                            'id': row['requirement_id'],
+                            'text': text,
+                            'domain': row.get('domain', ''),
+                            'entities': [{
+                                'start': start,
+                                'end': start + len(entity_text),
+                                'label': row['entity_type'],
+                                'text': entity_text
+                            }]
+                        })
+                    self.data = samples
+                else:
+                    self.data = json.load(dataset_file)
 
             self.logger.info(f"Loaded Aerospace dataset with {len(self.data)} samples")
             return self.data

@@ -88,23 +88,23 @@ def main():
 
     print("\n")
 
-    # # Example 3.3: Load and process dataset for NER
-    # print("Example 3.3: Load and Process Dataset (NER)")
-    # print("-" * 80)
+    # Example 3.3: Load and process dataset for NER
+    print("Example 3.3: Load and Process Dataset (NER)")
+    print("-" * 80)
 
-    # dataset_results = pipeline.load_and_process_dataset(DatasetConfig.AEROSPACE)
-    # print(f"\nLoaded and processed {len(dataset_results)} samples from AEROSPACE dataset")
+    dataset_results = pipeline.load_and_process_dataset(DatasetConfig.AEROSPACE)
+    print(f"\nLoaded and processed {len(dataset_results)} samples from AEROSPACE dataset")
 
-    # print("\n")
+    print("\n")
 
-    # # Example 3.4: Load and process dataset for Question Answering
-    # print("Example 3.4: Load and Process Dataset (Question Answering)")
-    # print("-" * 80)
+    # Example 3.4: Load and process dataset for Question Answering
+    print("Example 3.4: Load and Process Dataset (Question Answering)")
+    print("-" * 80)
 
-    # dataset_results = pipeline.load_and_process_dataset(DatasetConfig.REQUESTQA)
-    # print(f"\nLoaded and processed {len(dataset_results)} samples from REQUESTQA dataset")
+    dataset_results = pipeline.load_and_process_dataset(DatasetConfig.REQUESTQA)
+    print(f"\nLoaded and processed {len(dataset_results)} samples from REQUESTQA dataset")
 
-    # print("\n")
+    print("\n")
 
 
     # Example 4: Generate report
