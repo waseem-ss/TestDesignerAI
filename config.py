@@ -8,6 +8,12 @@ from dataclasses import dataclass
 from typing import Dict, List
 from enum import Enum
 
+from dotenv import load_dotenv
+
+# Load TestDesignerAI/.env before any module reads os.getenv(). Existing
+# environment variables take precedence over the file.
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+
 class ModelType(Enum):
     """Supported LLM Models"""
     GPT_4O = "gpt-4o"

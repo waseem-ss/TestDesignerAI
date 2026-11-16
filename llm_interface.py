@@ -7,12 +7,21 @@ Supports: GPT-4o, ChatGPT, Gemini, Claude
 import os
 import json
 import time
+import urllib.error
+import urllib.request
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple, Any
 from config import ModelType, ModelConfig, AppConfig, PromptEngineeringConfig
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+# Local LLM settings (read from .env). Ollama runs open-weight models on this machine,
+# so no API key or quota is needed.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "600"))  # CPU inference is slow
 
 
 class LLMResponse:
@@ -66,15 +75,23 @@ class BaseLLMModel(ABC):
         """Answer question based on context"""
         pass
 
-    def _make_api_call(self, prompt: str, max_retries: int = AppConfig.MAX_RETRIES) -> str:
-        """Make API call with retry logic"""
+    def _make_api_call(self, prompt: str, max_retries: int = AppConfig.MAX_RETRIES,
+                       max_tokens: Optional[int] = None) -> str:
+        """Make an LLM call with retry logic.
+
+        LLM_PROVIDER selects the backend:
+          - "ollama" (default): local model served by Ollama, no API key or quota
+          - "mock": placeholder text, for offline tests only
+        """
         for attempt in range(max_retries):
             try:
                 self.call_count += 1
-                # Actual API call implementation would go here
-                # This is a placeholder
                 logger.debug(f"API call {self.call_count} for {self.config.model_type.value}")
-                return self._mock_api_response(prompt)
+                if LLM_PROVIDER == "ollama":
+                    return self._ollama_generate(prompt, max_tokens=max_tokens)
+                if LLM_PROVIDER == "mock":
+                    return self._mock_api_response(prompt)
+                raise ValueError(f"Unknown LLM_PROVIDER: {LLM_PROVIDER!r} (use 'ollama' or 'mock')")
 
             except Exception as e:
                 self.logger.error(f"API call failed (attempt {attempt + 1}): {str(e)}")
@@ -84,6 +101,40 @@ class BaseLLMModel(ABC):
                     raise
 
         raise RuntimeError("API call failed without an available retry")
+
+    def _ollama_generate(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+        """Call the local Ollama /api/generate endpoint and return the text.
+
+        max_tokens caps the output length (Ollama's num_predict); it defaults to the
+        model config value when not given.
+        """
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            # Qwen3 and other reasoning models otherwise spend the whole token budget on
+            # hidden thinking and return an empty response. Ignored by models without thinking.
+            "think": False,
+            "options": {
+                "temperature": self.config.temperature,
+                "num_predict": max_tokens or self.config.max_tokens,
+            },
+        }
+        request = urllib.request.Request(
+            f"{OLLAMA_URL}/api/generate",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=OLLAMA_TIMEOUT) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.URLError as e:
+            raise ConnectionError(
+                f"Cannot reach Ollama at {OLLAMA_URL}. Is it running? ({e})"
+            ) from e
+        self.total_tokens += int(body.get("eval_count", 0) or 0)
+        return body.get("response", "")
 
     def _mock_api_response(self, prompt: str) -> str:
         """Generate mock response for demonstration"""
@@ -113,7 +164,7 @@ class GPT4OModel(BaseLLMModel):
             # )
             # return LLMResponse(response.choices[0].message.content, "gpt-4o", response.usage.total_tokens)
 
-            content = self._make_api_call(prompt)
+            content = self._make_api_call(prompt, max_tokens=kwargs.get('max_tokens'))
             self.total_tokens += 100  # Mock token count
             return LLMResponse(content, "gpt-4o", 100)
 

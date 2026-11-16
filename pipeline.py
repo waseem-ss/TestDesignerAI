@@ -4,6 +4,7 @@ Implements the recommended hybrid multi-model and human-in-the-loop pipeline
 from the literature review
 """
 
+import re
 from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -12,6 +13,7 @@ from config import (
     DatasetConfig, PromptEngineeringConfig, DATASETS
 )
 from logger import get_logger
+from prompt_engineering import get_template
 from data_loader import DataLoaderFactory, DataLoader
 from llm_interface import ModelFactory, BaseLLMModel, LLMResponse, LLMPipeline
 from evaluation import (
@@ -32,6 +34,43 @@ class ProcessingStatus(Enum):
     WAITING_REVIEW = "waiting_review"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+# A new case starts at column 0 with "1." / "1)" or "TC n" (optionally bulleted).
+# Indented numbering is a sub-step and stays with the case above it.
+_CASE_START = re.compile(r"^(?:\d+[.)]\s*|[-*•]?\s*TC\s*\d+\s*[:.)-]?\s*)", re.IGNORECASE)
+_CASE_LABEL = re.compile(r"^(?:(?:test\s+case\s*\d*|description|steps|expected\s+result)\s*[:.-]\s*)", re.IGNORECASE)
+
+
+def parse_test_cases(llm_output: str) -> List[str]:
+    """Turn raw LLM text into a list of test case strings.
+
+    Each numbered item (or 'TC n:' item) starts a new test case. Indented or
+    bulleted lines that follow it are folded into the same case, so markdown
+    sub-steps stay with their case. Markdown bold markers and 'Test Case N:'
+    labels are removed. Anything before the first numbered item is ignored.
+    """
+    cases: List[str] = []
+    current: Optional[str] = None
+    for raw in llm_output.splitlines():
+        line = raw.strip().replace("**", "")
+        if not line:
+            continue
+        if _CASE_START.match(raw):
+            if current:
+                cases.append(current)
+            current = _CASE_START.sub("", line, count=1)
+        elif current is not None:
+            current = f"{current} {re.sub(r'^[-*•]\s*', '', line)}"
+    if current:
+        cases.append(current)
+
+    cleaned = []
+    for case in cases:
+        case = _CASE_LABEL.sub("", case).strip()
+        if len(case) >= 10:
+            cleaned.append(case)
+    return cleaned
 
 
 @dataclass
@@ -219,6 +258,21 @@ class REPipeline:
 
         AppConfig.create_directories()
 
+    def generate_test_cases(self, record: Dict[str, str],
+                            template: str = "requirement_test_cases") -> List[str]:
+        """Generate test cases for one input record using a prompt template.
+
+        record: the input fields, e.g. {"requirement_text": ...} or bug report fields.
+        template: a name from prompt_engineering.TEMPLATES.
+        """
+        prompt_template = get_template(template)
+        model = ModelFactory.create_model(ModelType.GPT_4O)
+        response = model.generate(
+            prompt_template.build_prompt(record),
+            max_tokens=prompt_template.max_tokens,
+        )
+        return parse_test_cases(response.content)
+
     def process_requirement(self, requirement_id: str, requirement_text: str) -> ProcessingResult:
         """Process single requirement through pipeline"""
         self.logger.info(f"Processing requirement: {requirement_id}")
@@ -237,14 +291,19 @@ class REPipeline:
             self.logger.debug(f"Classified as task: {task_type.value}")
 
             # Step 2: Process through LLM pipeline
+            # 'quality_assess' is intentionally omitted: it was a second LLM call per
+            # requirement and is not needed for test-case generation.
             processing_results = self.llm_pipeline.process_requirement(
                 requirement_text,
-                ['extract', 'classify', 'quality_assess']
+                ['extract', 'classify']
             )
 
             result.extraction_result = processing_results['tasks_results'].get('extraction')
             result.classification_result = processing_results['tasks_results'].get('classification')
             result.quality_assessment = processing_results['tasks_results'].get('quality_assessment')
+
+            # Step 2b: Generate test cases with the configured local LLM
+            result.test_cases = self.generate_test_cases({"requirement_text": requirement_text})
 
             # Step 3: Extract confidence scores
             if result.classification_result:
