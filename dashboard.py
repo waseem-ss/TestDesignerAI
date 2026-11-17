@@ -47,7 +47,14 @@ with st.sidebar:
         "Task Type",
         ["extraction", "classification", "ner", "question_answering", "test_generation"]
     )
-    
+
+    # Dataset Selection
+    dataset = st.selectbox(
+        "Dataset",
+        ["Pure", "PROMISE", "Aerospace", "REQuestA"],
+        help="Select the dataset to process requirements from"
+    )
+
     # Provider Info
     st.markdown("### 📡 Provider Status")
     try:
@@ -102,7 +109,8 @@ with tab1:
                 payload = {
                     "req_id": req_id,
                     "text": requirement_text,
-                    "task_type": task_type
+                    "task_type": task_type,
+                    "dataset": dataset
                 }
                 
                 response = requests.post(
