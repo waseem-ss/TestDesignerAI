@@ -7,6 +7,7 @@ Endpoints:
 - GET /api/health - Provider health status
 - GET /api/stats - Usage statistics
 - POST /api/batch - Batch processing
+- POST /api/benchmark - Run benchmark tests
 """
 
 from fastapi import FastAPI, HTTPException
@@ -19,6 +20,11 @@ from datetime import datetime
 from pipeline import REPipeline
 from llm_interface_v2 import get_provider_health_status, get_available_providers
 from config import AppConfig
+
+try:
+    from benchmarking import ModelBenchmark
+except ImportError:
+    ModelBenchmark = None
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +58,8 @@ class RequirementInput(BaseModel):
     req_id: str
     text: str
     task_type: Optional[str] = "extraction"
+    dataset: Optional[str] = "Pure"
+    llm_model: Optional[str] = "auto"
 
 class BatchRequirementInput(BaseModel):
     """Input model for batch processing"""
@@ -83,6 +91,28 @@ class APIStatus(BaseModel):
     provider_health: Dict[str, Any]
     total_requests: int
     total_tokens: int
+
+class BenchmarkInput(BaseModel):
+    """Input model for benchmark testing"""
+    models: List[str]
+    task_type: str
+    dataset: str
+    num_samples: int = 10
+    timeout: int = 60
+
+class BenchmarkResult(BaseModel):
+    """Benchmark result"""
+    model: str
+    task_type: str
+    dataset: str
+    total_requests: int
+    successful_requests: int
+    failed_requests: int
+    success_rate: str
+    avg_response_time_ms: str
+    avg_tokens_used: str
+    avg_quality_score: str
+    timestamp: str
 
 # ============================================================================
 # Global Statistics
@@ -213,6 +243,45 @@ async def get_providers():
         "available": get_available_providers(),
         "health": get_provider_health_status()
     }
+
+@app.post("/api/benchmark")
+async def benchmark_models(input_data: BenchmarkInput):
+    """Run benchmark tests on specified models"""
+    try:
+        if not ModelBenchmark:
+            raise HTTPException(status_code=500, detail="Benchmarking module not available")
+
+        # Validate inputs
+        if not input_data.models:
+            raise HTTPException(status_code=400, detail="At least one model must be specified")
+
+        if not input_data.task_type:
+            raise HTTPException(status_code=400, detail="Task type must be specified")
+
+        if not input_data.dataset:
+            raise HTTPException(status_code=400, detail="Dataset must be specified")
+
+        logger.info(f"Starting benchmark: models={input_data.models}, task={input_data.task_type}, dataset={input_data.dataset}")
+
+        # Run benchmark
+        benchmark = ModelBenchmark()
+        results = benchmark.benchmark_multiple_models(
+            models=input_data.models,
+            task_type=input_data.task_type,
+            dataset_name=input_data.dataset,
+            num_samples=input_data.num_samples,
+            timeout=input_data.timeout
+        )
+
+        logger.info(f"Benchmark completed: {len(results.get('results', []))} models tested")
+
+        return results
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Benchmark failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
 # Health Check Endpoint (for load balancers)
