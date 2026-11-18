@@ -4,9 +4,10 @@ Examples:
   python generate_tests.py --template requirement_test_cases --input data/requirements_test.csv
   python generate_tests.py --template bug_test_cases --input data/reported_bugs.csv --limit 10
 
-Each result is appended to output/results/<template>__<input name>.jsonl as soon as it
-finishes. Re-running the same command skips rows already saved. When the run ends, the
-saved rows are also written to a .json array next to the .jsonl file.
+Each run writes to its own folder, output/results/<YYYY-MM-DD_HH-MM-SS>/ (the start time).
+Each result is appended to <template>__<input name>.jsonl as soon as it finishes. To resume
+an interrupted run, re-run with --out-dir pointing at that run's folder: rows already saved
+are skipped. When the run ends, the saved rows are also written to a .json array next to the .jsonl file.
 
 Id column: the first of requirement_id, bug_id or id present in the CSV, unless --id-col is given.
 Rows that fail (bad input or a model error) are not saved, so a re-run retries them.
@@ -65,8 +66,12 @@ def main() -> int:
     parser.add_argument("--input", required=True, help="CSV file with one input per row")
     parser.add_argument("--id-col", default=None, help="column holding the input id")
     parser.add_argument("--limit", type=int, default=None, help="only the first N rows")
-    parser.add_argument("--out-dir", default=RESULTS_DIR, help="where to write results")
+    parser.add_argument("--out-dir", default=None,
+                        help="folder to write results (default: a new output/results/<date_time> folder; "
+                             "pass an existing run folder to resume it)")
     args = parser.parse_args()
+    if args.out_dir is None:
+        args.out_dir = os.path.join(RESULTS_DIR, time.strftime("%Y-%m-%d_%H-%M-%S"))
 
     template = get_template(args.template)  # validates the name early
     df = pd.read_csv(args.input)
