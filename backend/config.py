@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 # Load TestDesignerAI/.env before any module reads os.getenv(). Existing
 # environment variables take precedence over the file.
-load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 class ModelType(Enum):
     """Supported LLM Models"""
@@ -199,7 +199,7 @@ class AppConfig:
     """Main Application Configuration"""
 
     # Project paths
-    PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_DIR = os.path.join(PROJECT_ROOT, "data")
     LOGS_DIR = os.path.join(PROJECT_ROOT, "logs")
     MODELS_DIR = os.path.join(PROJECT_ROOT, "models")

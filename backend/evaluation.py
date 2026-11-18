@@ -7,7 +7,7 @@ import json
 from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
 import numpy as np
-from logger import get_logger
+from backend.logger import get_logger
 
 logger = get_logger(__name__)
 

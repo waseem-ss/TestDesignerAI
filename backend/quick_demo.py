@@ -1,4 +1,4 @@
-from pipeline import REPipeline
+from backend.pipeline import REPipeline
 
 # Initialize pipeline
 pipeline = REPipeline()

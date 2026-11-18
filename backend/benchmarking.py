@@ -7,10 +7,10 @@ import time
 import json
 from typing import List, Dict, Any
 from datetime import datetime
-from pipeline import REPipeline
-from llm_interface_v2 import FailoverLLMModel, get_provider_health_status
-from config import AppConfig, ModelType
-from data_loader import (
+from backend.pipeline import REPipeline
+from backend.llm_interface_v2 import FailoverLLMModel, get_provider_health_status
+from backend.config import AppConfig, ModelType
+from backend.data_loader import (
     PureDataLoader,
     PROMISEDataLoader,
     AerospaceDataLoader,

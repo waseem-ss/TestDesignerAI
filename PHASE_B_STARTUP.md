@@ -33,9 +33,9 @@ pip install -r requirements.txt
 ### **Step 2: Start the API Server**
 ```bash
 # In terminal 1
-python api.py
+python -m api.api
 # or
-python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn api.api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Output:**
@@ -47,7 +47,7 @@ INFO:     API documentation available at http://localhost:8000/docs
 ### **Step 3: Start the Dashboard**
 ```bash
 # In terminal 2
-streamlit run dashboard.py
+streamlit run frontend/dashboard.py
 ```
 
 **Output:**
@@ -240,7 +240,7 @@ curl -X POST http://localhost:8000/api/process \
 lsof -i :8000
 
 # Use different port
-python -m uvicorn api:app --port 8001
+python -m uvicorn api.api:app --port 8001
 ```
 
 ### **Dashboard Connection Issues**
@@ -274,10 +274,10 @@ curl http://localhost:8000/api/health
 ### **Option 1: Local Development** ✅
 ```bash
 # Terminal 1: API
-python api.py
+python -m api.api
 
 # Terminal 2: Dashboard  
-streamlit run dashboard.py
+streamlit run frontend/dashboard.py
 ```
 
 ### **Option 2: Docker** (Coming soon)

@@ -16,10 +16,10 @@ from collections import Counter
 
 import pandas as pd
 
-from pipeline import REPipeline
-from llm_interface import LLM_PROVIDER, OLLAMA_MODEL, OLLAMA_URL
+from backend.pipeline import REPipeline
+from backend.llm_interface import LLM_PROVIDER, OLLAMA_MODEL, OLLAMA_URL
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEST_PATH = os.path.join(BASE_DIR, "data", "requirements_test.csv")
 OUT_DIR = os.path.join(BASE_DIR, "output", "results")
 JSONL_PATH = os.path.join(OUT_DIR, "test_split_results.jsonl")

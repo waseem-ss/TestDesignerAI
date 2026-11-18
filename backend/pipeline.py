@@ -8,15 +8,15 @@ import re
 from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-from config import (
+from backend.config import (
     AppConfig, ModelType, RETaskType, ModelConfig,
     DatasetConfig, PromptEngineeringConfig, DATASETS
 )
-from logger import get_logger
-from prompt_engineering import get_template
-from data_loader import DataLoaderFactory, DataLoader
-from llm_interface import ModelFactory, BaseLLMModel, LLMResponse, LLMPipeline
-from evaluation import (
+from backend.logger import get_logger
+from backend.prompt_engineering import get_template
+from backend.data_loader import DataLoaderFactory, DataLoader
+from backend.llm_interface import ModelFactory, BaseLLMModel, LLMResponse, LLMPipeline
+from backend.evaluation import (
     EvaluationMetrics, ClassificationMetrics, TextGenerationMetrics,
     TestCoverageMetrics, QualityAssessmentMetrics, NEREvaluationMetrics,
     EvaluationReporter

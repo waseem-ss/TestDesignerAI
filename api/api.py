@@ -17,12 +17,12 @@ from typing import Optional, List, Dict, Any
 import logging
 from datetime import datetime
 
-from pipeline import REPipeline
-from llm_interface_v2 import get_provider_health_status, get_available_providers
-from config import AppConfig
+from backend.pipeline import REPipeline
+from backend.llm_interface_v2 import get_provider_health_status, get_available_providers
+from backend.config import AppConfig
 
 try:
-    from benchmarking import ModelBenchmark
+    from backend.benchmarking import ModelBenchmark
 except ImportError:
     ModelBenchmark = None
 
@@ -317,7 +317,7 @@ if __name__ == "__main__":
     import uvicorn
     
     uvicorn.run(
-        "api:app",
+        "api.api:app",
         host="0.0.0.0",
         port=8000,
         reload=True,

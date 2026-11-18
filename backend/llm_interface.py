@@ -11,8 +11,8 @@ import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple, Any
-from config import ModelType, ModelConfig, AppConfig, PromptEngineeringConfig
-from logger import get_logger
+from backend.config import ModelType, ModelConfig, AppConfig, PromptEngineeringConfig
+from backend.logger import get_logger
 
 logger = get_logger(__name__)
 

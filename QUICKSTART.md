@@ -16,7 +16,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # 4. Run the tool
-python main.py
+python -m backend.main
 ```
 
 ## Your First Requirement Processing (1 minute)
@@ -48,7 +48,7 @@ print(f"✓ Needs Human Review: {result.human_review_required}")
 
 Run it:
 ```bash
-python quick_demo.py
+python -m backend.quick_demo
 ```
 
 ## Process Multiple Requirements (1 minute)

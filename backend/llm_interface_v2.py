@@ -18,8 +18,8 @@ from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
 
-from config import ModelType, ModelConfig, AppConfig
-from logger import get_logger
+from backend.config import ModelType, ModelConfig, AppConfig
+from backend.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -196,7 +196,7 @@ class FailoverLLMModel(BaseLLMModel):
         try:
             # Try importing and testing each provider
             if os.getenv("OLLAMA_URL"):
-                from llm_interface import OllamaModel as OldOllama
+                from backend.llm_interface import OllamaModel as OldOllama
                 config = AppConfig.get_model_config(ModelType.GPT_4O)
                 return OldOllama(config)
         except:

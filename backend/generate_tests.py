@@ -1,8 +1,8 @@
 """Generate test cases for a CSV of inputs using a prompt template.
 
 Examples:
-  python generate_tests.py --template requirement_test_cases --input data/requirements_test.csv
-  python generate_tests.py --template bug_test_cases --input data/reported_bugs.csv --limit 10
+  python -m backend.generate_tests --template requirement_test_cases --input data/requirements_test.csv
+  python -m backend.generate_tests --template bug_test_cases --input data/reported_bugs.csv --limit 10
 
 Each run writes to its own folder, output/results/<YYYY-MM-DD_HH-MM-SS>/ (the start time).
 Each result is appended to <template>__<input name>.jsonl as soon as it finishes. To resume
@@ -22,11 +22,11 @@ from collections import Counter
 
 import pandas as pd
 
-from llm_interface import LLM_PROVIDER, OLLAMA_MODEL, OLLAMA_URL
-from pipeline import REPipeline
-from prompt_engineering import get_template, TEMPLATES
+from backend.llm_interface import LLM_PROVIDER, OLLAMA_MODEL, OLLAMA_URL
+from backend.pipeline import REPipeline
+from backend.prompt_engineering import get_template, TEMPLATES
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULTS_DIR = os.path.join(BASE_DIR, "output", "results")
 ID_CANDIDATES = ("requirement_id", "bug_id", "id")
 

@@ -211,7 +211,7 @@ pip install -r requirements.txt
 
 ### 2. Run Demo (1 minute)
 ```bash
-python main.py
+python -m backend.main
 ```
 
 ### 3. Process Your First Requirement
@@ -413,7 +413,7 @@ This boilerplate directly implements findings from your literature review:
 
 ## 🎓 Learning Path
 
-1. **Beginner**: Run `python main.py` and read QUICKSTART.md
+1. **Beginner**: Run `python -m backend.main` and read QUICKSTART.md
 2. **Intermediate**: Modify examples in main.py
 3. **Advanced**: Extend with custom models/tasks
 4. **Expert**: Deploy to production
@@ -481,5 +481,5 @@ You now have:
 
 **You're ready to build your AI-Powered Requirements Engineering Tool!** 🚀
 
-Start with: `python main.py` or read `QUICKSTART.md`
+Start with: `python -m backend.main` or read `QUICKSTART.md`
 

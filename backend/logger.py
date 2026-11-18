@@ -7,7 +7,7 @@ import logging
 import logging.handlers
 import os
 from datetime import datetime
-from config import AppConfig
+from backend.config import AppConfig
 
 class LoggerFactory:
     """Factory for creating configured loggers"""

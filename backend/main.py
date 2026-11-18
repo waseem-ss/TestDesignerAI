@@ -5,10 +5,10 @@ Demonstrates usage of the complete pipeline
 
 import sys
 import json
-from config import AppConfig, RETaskType, DatasetConfig, ModelType
-from logger import get_logger
-from pipeline import REPipeline
-from evaluation import EvaluationReporter
+from backend.config import AppConfig, RETaskType, DatasetConfig, ModelType
+from backend.logger import get_logger
+from backend.pipeline import REPipeline
+from backend.evaluation import EvaluationReporter
 
 logger = get_logger(__name__)
 
@@ -209,7 +209,7 @@ def demo_dataset_info():
     print("AVAILABLE DATASETS FROM LITERATURE REVIEW")
     print("=" * 80 + "\n")
 
-    from config import DATASETS
+    from backend.config import DATASETS
 
     for dataset_name, config in DATASETS.items():
         print(f"Dataset: {config.name}")
@@ -231,7 +231,7 @@ if __name__ == "__main__":
             elif sys.argv[1] == "--datasets":
                 demo_dataset_info()
             elif sys.argv[1] == "--help":
-                print("Usage: python main.py [OPTIONS]")
+                print("Usage: python -m backend.main [OPTIONS]")
                 print("Options:")
                 print("  --prompts   Show prompt engineering strategies")
                 print("  --datasets  Show available datasets")

@@ -13,7 +13,7 @@ Outputs (written to data/):
   - requirements_test.csv    test split
 
 Usage:
-  python prepare_requirements.py
+  python -m backend.prepare_requirements
 """
 
 import os
@@ -22,7 +22,7 @@ import sys
 
 import pandas as pd
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 INPUT_PATH = os.path.join(DATA_DIR, "software_requirements_extended.csv")
 

@@ -200,10 +200,10 @@ ai_re_tool_boilerplate/
   - Statistics and reporting
 - **Lines of Code**: ~250
 - **Command-line Options**:
-  - `python main.py` - Run full demo
-  - `python main.py --prompts` - Show prompt strategies
-  - `python main.py --datasets` - Show datasets
-  - `python main.py --help` - Display help
+  - `python -m backend.main` - Run full demo
+  - `python -m backend.main --prompts` - Show prompt strategies
+  - `python -m backend.main --datasets` - Show datasets
+  - `python -m backend.main --help` - Display help
 
 ## File Statistics
 
@@ -330,7 +330,7 @@ pip install -r requirements.txt
 
 ### 2. First Run (30 seconds)
 ```bash
-python main.py
+python -m backend.main
 ```
 
 ### 3. Try Examples

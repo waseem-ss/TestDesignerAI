@@ -201,16 +201,16 @@ pipeline.review_queue.reject("REQ_002", notes="Needs clarification")
 
 ```bash
 # Run main pipeline with examples
-python main.py
+python -m backend.main
 
 # Show prompt engineering strategies
-python main.py --prompts
+python -m backend.main --prompts
 
 # Show available datasets
-python main.py --datasets
+python -m backend.main --datasets
 
 # Display help
-python main.py --help
+python -m backend.main --help
 ```
 
 ---

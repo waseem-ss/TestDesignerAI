@@ -11,8 +11,8 @@ import pandas as pd
 import numpy as np
 from typing import Tuple, List, Dict, Any, Union
 from sklearn.model_selection import train_test_split
-from logger import get_logger
-from config import AppConfig, RETaskType, DatasetConfig
+from backend.logger import get_logger
+from backend.config import AppConfig, RETaskType, DatasetConfig
 
 logger = get_logger(__name__)
 

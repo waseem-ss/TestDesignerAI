@@ -148,7 +148,7 @@
 
 ### To Get Started
 1. Read → `QUICKSTART.md` (5 minutes)
-2. Run → `python main.py`
+2. Run → `python -m backend.main`
 3. Read → `README.md` (for details)
 
 ### To Understand Design
@@ -160,7 +160,7 @@
 1. Copy → entire `ai_re_tool_boilerplate/` folder
 2. Install → `pip install -r requirements.txt`
 3. Configure → Edit `config.py` as needed
-4. Run → `python main.py` or use `pipeline.py`
+4. Run → `python -m backend.main` or use `pipeline.py`
 
 ### To Extend
 1. Read → Extension guide in `README.md`
@@ -233,16 +233,16 @@ pip install -r requirements.txt
 ### Step 3: Run
 ```bash
 # Run complete demo
-python main.py
+python -m backend.main
 
 # Show prompt strategies
-python main.py --prompts
+python -m backend.main --prompts
 
 # Show available datasets
-python main.py --datasets
+python -m backend.main --datasets
 
 # Show help
-python main.py --help
+python -m backend.main --help
 ```
 
 ### Step 4: Integrate
@@ -360,4 +360,4 @@ pipeline.py
 
 **Happy Requirements Engineering!** 🚀
 
-Start with: `cat QUICKSTART.md` or `python main.py`
+Start with: `cat QUICKSTART.md` or `python -m backend.main`

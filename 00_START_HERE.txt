@@ -31,7 +31,7 @@ QUICK START (5 MINUTES)
    pip install -r requirements.txt
 
 2. Run:
-   python main.py
+   python -m backend.main
 
 3. Read:
    QUICKSTART.md (5 min overview)
@@ -194,7 +194,7 @@ NEXT STEPS
 ================================================================================
 
 IMMEDIATE (Today):
-  1. Run: python main.py
+  1. Run: python -m backend.main
   2. Read: QUICKSTART.md
   3. Explore: main.py source code
 
@@ -318,7 +318,7 @@ READY TO START?
 
 Next Action: Read QUICKSTART.md (5 minutes)
 
-Then: python main.py
+Then: python -m backend.main
 
 That's it! You're ready to build your AI-Powered RE Tool.
 
