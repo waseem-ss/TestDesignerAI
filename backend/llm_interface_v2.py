@@ -12,6 +12,14 @@ NEW FEATURES:
 import os
 import json
 import time
+
+# Use the Windows certificate store for HTTPS, so corporate TLS-inspection roots are trusted.
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
@@ -30,6 +38,7 @@ class LLMProvider(Enum):
     OPENAI = "openai"
     CLAUDE = "claude"
     GEMINI = "gemini"
+    HF = "hf"
     MOCK = "mock"
 
 class LLMResponse:
@@ -83,7 +92,7 @@ class ProviderHealthMonitor:
     def get_available_providers(self) -> List[LLMProvider]:
         """Get list of healthy providers"""
         available = []
-        for provider in [LLMProvider.OLLAMA, LLMProvider.GROQ, LLMProvider.OPENAI, LLMProvider.CLAUDE, LLMProvider.GEMINI]:
+        for provider in [LLMProvider.OLLAMA, LLMProvider.GROQ, LLMProvider.HF, LLMProvider.OPENAI, LLMProvider.CLAUDE, LLMProvider.GEMINI]:
             health = self.health_status[provider]
             if health.is_healthy or health.error_count < 10:
                 available.append(provider)
@@ -184,33 +193,201 @@ class GroqModel(BaseLLMModel):
         content = f"Answer: {question}"
         return LLMResponse(content, self.model_name, 50, provider=self.provider.value)
 
+# ---------------------------------------------------------------------------
+# Provider calls. Every provider is reached through call_provider(), which
+# returns (text, tokens_used) and updates the health monitor.
+# ---------------------------------------------------------------------------
+
+# Keys and default models come from .env (see .env.example).
+PROVIDER_KEY_ENV = {
+    "groq": "GROQ_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+    "gemini": "GOOGLE_API_KEY",
+    "hf": "HF_API_KEY",
+}
+PROVIDER_MODEL_ENV = {"groq": "GROQ_MODEL", "openai": "OPENAI_MODEL", "claude": "CLAUDE_MODEL",
+                      "gemini": "GEMINI_MODEL", "hf": "HF_MODEL"}
+# Extra models offered in the dashboard next to the .env default.
+PROVIDER_MODEL_CHOICES = {
+    "openai": ["gpt-4o", "gpt-4o-mini"],
+    "claude": ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"],
+    "gemini": ["gemini-2.5-flash", "gemini-2.5-pro"],
+}
+# Order used when the provider is "auto" and when failing over.
+PROVIDER_ORDER = ("ollama", "groq", "hf", "openai", "claude", "gemini")
+
+
+def provider_key_configured(provider: str) -> bool:
+    env_name = PROVIDER_KEY_ENV.get(provider)
+    return bool(env_name and os.getenv(env_name))
+
+
+def default_model(provider: str) -> str:
+    if provider == "ollama":
+        return os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+    return os.getenv(PROVIDER_MODEL_ENV.get(provider, ""), "")
+
+
+def model_choices(provider: str) -> List[str]:
+    """The .env default model first, then the extra models for this provider."""
+    choices: List[str] = []
+    for model in [default_model(provider), *PROVIDER_MODEL_CHOICES.get(provider, [])]:
+        if model and model not in choices:
+            choices.append(model)
+    return choices
+
+
+def _call_groq(key, model, prompt, max_tokens, temperature):
+    from groq import Groq
+    response = Groq(api_key=key).chat.completions.create(
+        model=model, messages=[{"role": "user", "content": prompt}],
+        temperature=temperature, max_tokens=max_tokens,
+    )
+    tokens = response.usage.total_tokens if response.usage else 0
+    return response.choices[0].message.content or "", tokens
+
+
+def _call_openai(key, model, prompt, max_tokens, temperature):
+    from openai import OpenAI
+    response = OpenAI(api_key=key).chat.completions.create(
+        model=model, messages=[{"role": "user", "content": prompt}],
+        temperature=temperature, max_completion_tokens=max_tokens,
+    )
+    tokens = response.usage.total_tokens if response.usage else 0
+    return response.choices[0].message.content or "", tokens
+
+
+def _call_claude(key, model, prompt, max_tokens, temperature):
+    from anthropic import Anthropic
+    # The installed SDK's messages.create has no temperature argument, so the model default applies.
+    response = Anthropic(api_key=key).messages.create(
+        model=model, max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(block.text for block in response.content if getattr(block, "type", "") == "text")
+    return text, response.usage.input_tokens + response.usage.output_tokens
+
+
+def _call_hf(key, model, prompt, max_tokens, temperature):
+    from huggingface_hub import InferenceClient
+    response = InferenceClient(api_key=key).chat_completion(
+        model=model, messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_tokens, temperature=max(temperature, 0.01),  # HF rejects exactly 0
+    )
+    tokens = response.usage.total_tokens if response.usage else 0
+    return response.choices[0].message.content or "", tokens
+
+
+def _call_gemini(key, model, prompt, max_tokens, temperature):
+    from google import genai
+    from google.genai import types
+    client = genai.Client(api_key=key)
+    response = client.models.generate_content(
+        model=model, contents=prompt,
+        config=types.GenerateContentConfig(max_output_tokens=max_tokens, temperature=temperature),
+    )
+    tokens = response.usage_metadata.total_token_count if response.usage_metadata else 0
+    return response.text or "", tokens or 0
+
+
+_CLOUD_CALLERS = {"groq": _call_groq, "hf": _call_hf, "openai": _call_openai,
+                  "claude": _call_claude, "gemini": _call_gemini}
+
+
+def call_provider(provider: str, prompt: str, model: Optional[str] = None,
+                  max_tokens: int = 512, temperature: float = 0.0) -> Tuple[str, int]:
+    """Send one prompt to a provider. Returns (text, tokens_used)."""
+    provider = provider.lower()
+    model = model or default_model(provider)
+    if provider == "ollama":
+        from backend.llm_interface import ollama_request
+        body = ollama_request(prompt, model=model, max_tokens=max_tokens, temperature=temperature)
+        return body.get("response", ""), int(body.get("eval_count", 0) or 0)
+    if provider not in _CLOUD_CALLERS:
+        raise ValueError(f"Unknown provider {provider!r}")
+    if not provider_key_configured(provider):
+        raise ValueError(f"{PROVIDER_KEY_ENV[provider]} is not set in .env")
+    if not model:
+        raise ValueError(f"No model set for {provider}; set {PROVIDER_MODEL_ENV[provider]} in .env")
+
+    health = health_monitor.health_status[LLMProvider(provider)]
+    start = time.time()
+    try:
+        text, tokens = _CLOUD_CALLERS[provider](os.getenv(PROVIDER_KEY_ENV[provider]), model, prompt,
+                                                max_tokens, temperature)
+    except Exception as e:
+        health.mark_failure(str(e))
+        raise
+    health.mark_success((time.time() - start) * 1000)
+    return text, tokens
+
+
+def resolve_provider(provider: str) -> str:
+    """Turn "auto" into the first usable provider; other names are returned unchanged."""
+    if provider != "auto":
+        return provider
+    for candidate in PROVIDER_ORDER:
+        if candidate == "ollama":
+            try:
+                from backend.llm_interface import list_ollama_models
+                list_ollama_models()
+                return candidate
+            except ConnectionError:
+                continue
+        elif provider_key_configured(candidate):
+            return candidate
+    raise ValueError("No LLM provider is available: start Ollama or set an API key in .env")
+
+
+class CloudLLMModel(BaseLLMModel):
+    """Any provider from call_provider() behind the BaseLLMModel interface."""
+
+    def __init__(self, provider: str, model_config: ModelConfig, model_name: Optional[str] = None):
+        super().__init__(model_config)
+        self.provider = LLMProvider(provider)
+        self.model_name = model_name or default_model(provider)
+
+    def generate(self, prompt: str, **kwargs) -> LLMResponse:
+        self.call_count += 1
+        text, tokens = call_provider(
+            self.provider.value, prompt, model=self.model_name,
+            max_tokens=kwargs.get("max_tokens") or self.config.max_tokens,
+            temperature=self.config.temperature,
+        )
+        self.total_tokens += tokens
+        return LLMResponse(text, self.model_name, tokens, provider=self.provider.value)
+
+    def extract_entities(self, text: str) -> Dict[str, List[str]]:
+        return {'entities': []}
+
+    def classify(self, text: str, categories: List[str]) -> Tuple[str, float]:
+        return categories[0] if categories else "unknown", 0.5
+
+    def question_answering(self, context: str, question: str) -> LLMResponse:
+        return self.generate(f"Context: {context}\n\nQuestion: {question}")
+
+
 class FailoverLLMModel(BaseLLMModel):
     """Automatic failover across multiple LLM providers"""
 
     def __init__(self, model_config: ModelConfig):
         super().__init__(model_config)
         self.selected_model: Optional[BaseLLMModel] = None
+        self.failed_providers: set = set()
 
-    def _select_best_provider(self):
-        """Priority: Ollama → Groq → OpenAI → Claude → Gemini → Mock"""
-        try:
-            # Try importing and testing each provider
-            if os.getenv("OLLAMA_URL"):
-                from backend.llm_interface import OllamaModel as OldOllama
-                config = AppConfig.get_model_config(ModelType.GPT_4O)
-                return OldOllama(config)
-        except:
-            pass
+    def _select_best_provider(self) -> BaseLLMModel:
+        """Priority: Ollama -> Groq -> OpenAI -> Claude -> Gemini -> Mock.
 
-        try:
-            if os.getenv("GROQ_API_KEY"):
-                config = AppConfig.get_model_config(ModelType.GPT_4O)
-                return GroqModel(config)
-        except:
-            pass
-
-        logger.warning("No providers available, using mock")
+        Providers that failed earlier in this session are skipped.
+        """
         config = AppConfig.get_model_config(ModelType.GPT_4O)
+        for provider in PROVIDER_ORDER:
+            if provider in self.failed_providers:
+                continue
+            if provider == "ollama" or provider_key_configured(provider):
+                return CloudLLMModel(provider, config)
+        logger.warning("No providers available, using mock")
         return MockModel(config)
 
     def generate(self, prompt: str, **kwargs) -> LLMResponse:
@@ -220,7 +397,9 @@ class FailoverLLMModel(BaseLLMModel):
         try:
             return self.selected_model.generate(prompt, **kwargs)
         except Exception as e:
-            logger.error(f"Provider failed: {e}, retrying...")
+            failed = self.selected_model.provider.value
+            logger.error(f"Provider {failed} failed: {e}, trying the next provider...")
+            self.failed_providers.add(failed)
             self.selected_model = self._select_best_provider()
             return self.selected_model.generate(prompt, **kwargs)
 

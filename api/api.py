@@ -8,6 +8,9 @@ Endpoints:
 - GET /api/stats - Usage statistics
 - POST /api/batch - Batch processing
 - POST /api/benchmark - Run benchmark tests
+- GET /api/datasets, /api/templates, /api/models - Choices for test generation
+- POST /api/test-generation - Generate test cases for a dataset (background job)
+- GET /api/test-generation/{job_id}[/results], POST /api/test-generation/{job_id}/stop
 """
 
 from fastapi import FastAPI, HTTPException
@@ -15,11 +18,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
+import time
 from datetime import datetime
 
 from backend.pipeline import REPipeline
 from backend.llm_interface_v2 import get_provider_health_status, get_available_providers
 from backend.config import AppConfig
+from backend.llm_interface import OLLAMA_MODEL, list_ollama_models
+from backend.llm_interface_v2 import (
+    PROVIDER_KEY_ENV, default_model, model_choices, provider_key_configured, resolve_provider,
+)
+from backend.prompt_engineering import TEMPLATES
+from backend.test_generation import get_job, list_datasets, request_stop, start_job
+from backend.analytics import collect_run_stats
+from backend.requirement_tasks import run_task
+import json as _json
+import os as _os
 
 try:
     from backend.benchmarking import ModelBenchmark
@@ -59,7 +73,8 @@ class RequirementInput(BaseModel):
     text: str
     task_type: Optional[str] = "extraction"
     dataset: Optional[str] = "Pure"
-    llm_model: Optional[str] = "auto"
+    provider: Optional[str] = "ollama"     # ollama, hf, gemini, groq (or openai, claude, auto)
+    llm_model: Optional[str] = None        # model for that provider; None = the .env default
 
 class BatchRequirementInput(BaseModel):
     """Input model for batch processing"""
@@ -161,40 +176,38 @@ async def get_health():
 
 @app.post("/api/process", response_model=RequirementResponse)
 async def process_requirement(input_data: RequirementInput):
-    """Process a single requirement through the pipeline"""
+    """Run one requirement through the chosen task and provider."""
+    start_time = time.time()
+    model = None if input_data.llm_model in (None, "", "auto") else input_data.llm_model
     try:
-        import time
-        start_time = time.time()
-        
-        # Process requirement
-        result = pipeline.process_requirement(
-            input_data.req_id,
-            input_data.text
+        result, tokens, provider_used = run_task(
+            input_data.task_type or "extraction", input_data.req_id, input_data.text,
+            input_data.provider or "ollama", model,
         )
-        
-        processing_time = (time.time() - start_time) * 1000
-        
-        # Update statistics
-        stats.total_requests += 1
-        if hasattr(result, 'tokens_used'):
-            stats.total_tokens += result.tokens_used
-        
-        logger.info(f"Processed {input_data.req_id} in {processing_time:.2f}ms")
-        
-        return RequirementResponse(
-            req_id=input_data.req_id,
-            input_text=input_data.text,
-            status="success",
-            result={"classification": "functional", "entities": []},
-            provider_used=getattr(result, 'provider', 'unknown'),
-            tokens_used=getattr(result, 'tokens_used', 0),
-            processing_time_ms=processing_time,
-            timestamp=datetime.now().isoformat()
-        )
-    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Processing failed for {input_data.req_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+    processing_time = (time.time() - start_time) * 1000
+    stats.total_requests += 1
+    stats.total_tokens += tokens
+    logger.info(f"Processed {input_data.req_id} with {provider_used} in {processing_time:.2f}ms")
+
+    return RequirementResponse(
+        req_id=input_data.req_id,
+        input_text=input_data.text,
+        status="success",
+        result=result,
+        provider_used=provider_used,
+        tokens_used=tokens,
+        processing_time_ms=processing_time,
+        timestamp=datetime.now().isoformat(),
+    )
+
 
 @app.post("/api/batch")
 async def batch_process(input_data: BatchRequirementInput):
@@ -235,6 +248,21 @@ async def get_stats():
         "uptime_seconds": uptime.total_seconds(),
         "available_providers": get_available_providers()
     }
+
+@app.get("/api/analytics")
+async def get_analytics():
+    """Totals and breakdowns over every saved test-generation run, plus live API counters."""
+    try:
+        report = collect_run_stats()
+    except Exception as e:
+        logger.error(f"Analytics failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    report["live"] = {
+        "total_requests": stats.total_requests,
+        "total_tokens": stats.total_tokens,
+        "uptime_seconds": (datetime.now() - stats.start_time).total_seconds(),
+    }
+    return report
 
 @app.get("/api/providers")
 async def get_providers():
@@ -282,6 +310,98 @@ async def benchmark_models(input_data: BenchmarkInput):
     except Exception as e:
         logger.error(f"Benchmark failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# Dataset Test Generation
+# ============================================================================
+
+class TestGenerationRequest(BaseModel):
+    dataset: str                       # file name under data/, e.g. "promise_dataset.csv"
+    template: str = "requirement_test_cases"
+    provider: str = "ollama"           # ollama, groq, openai, claude, gemini or auto
+    model: Optional[str] = None        # model for that provider; None = the .env default
+    limit: Optional[int] = None        # first N rows; None or 0 = all rows
+
+
+@app.get("/api/datasets")
+async def get_datasets():
+    """Every dataset file under data/ with its row count and detected columns."""
+    return {"datasets": list_datasets()}
+
+
+@app.get("/api/templates")
+async def get_templates():
+    """Prompt templates that can be used for test generation."""
+    return {"templates": sorted(TEMPLATES)}
+
+
+@app.get("/api/models")
+async def get_models(provider: str = "ollama"):
+    """Models for a provider. Ollama lists the models installed locally; cloud providers
+    list the .env default plus common choices, and are empty when no API key is set."""
+    provider = provider.lower()
+    if provider == "auto":
+        try:
+            provider = resolve_provider("auto")
+        except ValueError as e:
+            raise HTTPException(status_code=503, detail=str(e))
+    if provider == "ollama":
+        try:
+            models = list_ollama_models()
+        except ConnectionError as e:
+            raise HTTPException(status_code=503, detail=str(e))
+        return {"provider": provider, "configured": True, "models": models, "default": OLLAMA_MODEL}
+    if provider not in PROVIDER_KEY_ENV:
+        raise HTTPException(status_code=400, detail=f"Unknown provider {provider!r}")
+    configured = provider_key_configured(provider)
+    return {
+        "provider": provider, "configured": configured,
+        "models": model_choices(provider) if configured else [],
+        "default": default_model(provider),
+    }
+
+
+@app.post("/api/test-generation", status_code=202)
+async def create_test_generation(req: TestGenerationRequest):
+    """Start generating test cases for a dataset in the background. Returns a job to poll."""
+    try:
+        return start_job(req.dataset, req.template, req.provider, req.model, req.limit or None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.get("/api/test-generation/{job_id}")
+async def get_test_generation(job_id: str):
+    """Status and progress of a generation job."""
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="unknown job id")
+    return job
+
+
+@app.get("/api/test-generation/{job_id}/results")
+async def get_test_generation_results(job_id: str):
+    """Generated test cases for a finished or stopped job."""
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="unknown job id")
+    json_path = (job.get("summary") or {}).get("json_path")
+    if json_path is None or not _os.path.exists(json_path):
+        raise HTTPException(status_code=409, detail="no results saved yet")
+    with open(json_path, encoding="utf-8") as f:
+        return {"job_id": job_id, "results": _json.load(f)}
+
+
+@app.post("/api/test-generation/{job_id}/stop")
+async def stop_test_generation(job_id: str):
+    """Stop a running job after the current row. Rows already saved are kept."""
+    job = request_stop(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="unknown job id")
+    return job
+
 
 # ============================================================================
 # Health Check Endpoint (for load balancers)

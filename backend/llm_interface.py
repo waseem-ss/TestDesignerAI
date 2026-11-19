@@ -24,6 +24,44 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "600"))  # CPU inference is slow
 
 
+def ollama_request(prompt: str, model: str = None, max_tokens: int = 512,
+                   temperature: float = 0.0) -> dict:
+    """POST one non-streaming prompt to Ollama /api/generate and return the JSON body.
+
+    model defaults to OLLAMA_MODEL. Raises ConnectionError when Ollama is unreachable.
+    """
+    payload = {
+        "model": model or OLLAMA_MODEL,
+        "prompt": prompt,
+        "stream": False,
+        # Qwen3 and other reasoning models otherwise spend the whole token budget on
+        # hidden thinking and return an empty response. Ignored by models without thinking.
+        "think": False,
+        "options": {"temperature": temperature, "num_predict": max_tokens},
+    }
+    request = urllib.request.Request(
+        f"{OLLAMA_URL}/api/generate",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=OLLAMA_TIMEOUT) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        raise ConnectionError(f"Cannot reach Ollama at {OLLAMA_URL}. Is it running? ({e})") from e
+
+
+def list_ollama_models() -> List[str]:
+    """Names of the models installed in Ollama (GET /api/tags)."""
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=5) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        raise ConnectionError(f"Cannot reach Ollama at {OLLAMA_URL}. Is it running? ({e})") from e
+    return sorted(m["name"] for m in body.get("models", []))
+
+
 class LLMResponse:
     """Structured response from LLM"""
 
@@ -108,31 +146,12 @@ class BaseLLMModel(ABC):
         max_tokens caps the output length (Ollama's num_predict); it defaults to the
         model config value when not given.
         """
-        payload = {
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            # Qwen3 and other reasoning models otherwise spend the whole token budget on
-            # hidden thinking and return an empty response. Ignored by models without thinking.
-            "think": False,
-            "options": {
-                "temperature": self.config.temperature,
-                "num_predict": max_tokens or self.config.max_tokens,
-            },
-        }
-        request = urllib.request.Request(
-            f"{OLLAMA_URL}/api/generate",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        body = ollama_request(
+            prompt,
+            model=OLLAMA_MODEL,
+            max_tokens=max_tokens or self.config.max_tokens,
+            temperature=self.config.temperature,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=OLLAMA_TIMEOUT) as response:
-                body = json.loads(response.read().decode("utf-8"))
-        except urllib.error.URLError as e:
-            raise ConnectionError(
-                f"Cannot reach Ollama at {OLLAMA_URL}. Is it running? ({e})"
-            ) from e
         self.total_tokens += int(body.get("eval_count", 0) or 0)
         return body.get("response", "")
 
