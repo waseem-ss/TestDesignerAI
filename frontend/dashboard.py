@@ -51,120 +51,9 @@ api_url = st.text_input(
 ).rstrip("/")
 
 # Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["📝 Process Requirements", "📊 Analytics", "🏥 Health", "⚙️ LLM Settings", "🧪 Test Case Designer"]
+tab2, tab3, tab4, tab5 = st.tabs(
+    ["📊 Analytics", "🏥 Health", "⚙️ LLM Settings", "🧪 Test Case Designer"]
 )
-
-# ============================================================================
-# TAB 1: Process Requirements
-# ============================================================================
-
-with tab1:
-    st.markdown("## Process Requirements")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        # Input text
-        requirement_text = st.text_area(
-            "Enter requirement text:",
-            placeholder="e.g., The system shall authenticate users using OAuth 2.0",
-            height=150
-        )
-    
-    with col2:
-        st.markdown("### Options")
-        req_id = st.text_input("Requirement ID:", value="REQ_001")
-        task_type = st.selectbox(
-            "Task Type",
-            ["extraction", "classification", "ner", "question_answering", "test_generation"]
-        )
-        dataset = st.selectbox(
-            "Dataset",
-            ["Pure", "PROMISE", "Aerospace", "REQuestA"],
-            help="Dataset the requirement is processed against"
-        )
-        process_provider = st.selectbox(
-            "LLM Provider",
-            ["ollama", "hf", "gemini", "groq"],
-            key="process_provider",
-        )
-        try:
-            process_models_info = fetch_json(f"{api_url}/api/models?provider={process_provider}")
-            process_models = process_models_info["models"]
-            process_default = process_models_info.get("default")
-        except Exception as e:
-            st.caption(f"⚠️ Cannot load models for {process_provider}: {e}")
-            process_models, process_default = [], None
-        if process_models:
-            process_model = st.selectbox(
-                "Model", process_models,
-                index=(process_models.index(process_default) if process_default in process_models else 0),
-                key="process_model",
-            )
-        else:
-            process_model = None
-            st.caption(f"No models for {process_provider}. Ollama: start Ollama. Cloud: set the API key in .env.")
-        process_button = st.button("🚀 Process", use_container_width=True)
-    
-    # Process the requirement
-    if process_button and requirement_text:
-        with st.spinner("Processing..."):
-            try:
-                payload = {
-                    "req_id": req_id,
-                    "text": requirement_text,
-                    "task_type": task_type,
-                    "dataset": dataset,
-                    "provider": process_provider,
-                    "llm_model": process_model,
-                }
-                
-                response = requests.post(
-                    f"{api_url}/api/process",
-                    json=payload,
-                    timeout=30
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    
-                    # Display Results
-                    st.markdown("### ✅ Results")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Status", result.get("status", "N/A"))
-                    with col2:
-                        st.metric("Provider", result.get("provider_used", "N/A"))
-                    with col3:
-                        st.metric("Tokens", result.get("tokens_used", 0))
-                    with col4:
-                        st.metric("Time (ms)", f"{result.get('processing_time_ms', 0):.0f}")
-                    
-                    # Show full result
-                    st.markdown("### Output")
-                    st.json(result.get("result", {}))
-                    
-                    # Export options
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.download_button(
-                            "📥 Download JSON",
-                            json.dumps(result, indent=2),
-                            f"{req_id}_result.json"
-                        )
-                    with col2:
-                        st.download_button(
-                            "📥 Download CSV",
-                            pd.DataFrame([result]).to_csv(index=False),
-                            f"{req_id}_result.csv"
-                        )
-                else:
-                    st.error(f"❌ Error: {response.status_code}")
-            
-            except Exception as e:
-                st.error(f"❌ Failed: {str(e)}")
 
 # ============================================================================
 # TAB 2: Analytics
@@ -193,13 +82,7 @@ with tab2:
         k4.metric("Avg cases / row", f"{totals['avg_cases_per_row']:.2f}")
         k5.metric("Datasets", totals["datasets"])
 
-        st.markdown("### Live API counters (since the API started)")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Process requests", live.get("total_requests", 0))
-        c2.metric("Tokens used", live.get("total_tokens", 0))
-        avg_tokens = live.get("total_tokens", 0) / max(1, live.get("total_requests", 0))
-        c3.metric("Avg tokens / request", f"{avg_tokens:.0f}")
-        c4.metric("Uptime (hrs)", f"{live.get('uptime_seconds', 0) / 3600:.2f}")
+        st.metric("API uptime (hrs)", f"{live.get('uptime_seconds', 0) / 3600:.2f}")
 
         runs = pd.DataFrame(analytics["runs"])
         if runs.empty:

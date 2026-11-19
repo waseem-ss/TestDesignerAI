@@ -259,22 +259,38 @@ class REPipeline:
         AppConfig.create_directories()
 
     def generate_test_cases(self, record: Dict[str, str],
-                            template: str = "requirement_test_cases") -> List[str]:
+                            template: str = "requirement_test_cases",
+                            provider: str = "ollama",
+                            model: Optional[str] = None,
+                            max_tokens: Optional[int] = None,
+                            temperature: float = 0.0) -> List[str]:
         """Generate test cases for one input record using a prompt template.
 
         record: the input fields, e.g. {"requirement_text": ...} or bug report fields.
         template: a name from prompt_engineering.TEMPLATES.
+        provider: "ollama", "groq", "openai", "claude", "gemini" or "hf" (see llm_interface_v2).
+        model: the model name for that provider; None uses the provider's .env default.
+        max_tokens: output budget; None uses the template's default.
+        temperature: sampling temperature passed to the provider.
         """
-        prompt_template = get_template(template)
-        model = ModelFactory.create_model(ModelType.GPT_4O)
-        response = model.generate(
-            prompt_template.build_prompt(record),
-            max_tokens=prompt_template.max_tokens,
-        )
-        return parse_test_cases(response.content)
+        from backend.llm_interface_v2 import call_provider  # local import: avoids a load-time cycle
 
-    def process_requirement(self, requirement_id: str, requirement_text: str) -> ProcessingResult:
-        """Process single requirement through pipeline"""
+        prompt_template = get_template(template)
+        text, _ = call_provider(
+            provider,
+            prompt_template.build_prompt(record),
+            model=model,
+            max_tokens=max_tokens or prompt_template.max_tokens,
+            temperature=temperature,
+        )
+        return parse_test_cases(text)
+
+    def process_requirement(self, requirement_id: str, requirement_text: str,
+                            provider: str = "ollama", model: Optional[str] = None) -> ProcessingResult:
+        """Process single requirement through pipeline.
+
+        provider/model choose the LLM used for test-case generation (see generate_test_cases).
+        """
         self.logger.info(f"Processing requirement: {requirement_id}")
 
         result = ProcessingResult(
@@ -303,7 +319,8 @@ class REPipeline:
             result.quality_assessment = processing_results['tasks_results'].get('quality_assessment')
 
             # Step 2b: Generate test cases with the configured local LLM
-            result.test_cases = self.generate_test_cases({"requirement_text": requirement_text})
+            result.test_cases = self.generate_test_cases(
+                {"requirement_text": requirement_text}, provider=provider, model=model)
 
             # Step 3: Extract confidence scores
             if result.classification_result:
@@ -342,13 +359,14 @@ class REPipeline:
         self.results.append(result)
         return result
 
-    def process_batch(self, requirements: List[Tuple[str, str]]) -> List[ProcessingResult]:
-        """Process batch of requirements"""
+    def process_batch(self, requirements: List[Tuple[str, str]], provider: str = "ollama",
+                      model: Optional[str] = None) -> List[ProcessingResult]:
+        """Process batch of requirements with one provider/model for all of them."""
         self.logger.info(f"Processing batch of {len(requirements)} requirements")
 
         results = []
         for req_id, req_text in requirements:
-            result = self.process_requirement(req_id, req_text)
+            result = self.process_requirement(req_id, req_text, provider=provider, model=model)
             results.append(result)
 
         self.logger.info(f"Batch processing complete. {len(results)} requirements processed")

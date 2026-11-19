@@ -3,10 +3,10 @@ FastAPI REST Interface for TestDesignerAI
 Provides REST endpoints for the RE pipeline with automatic failover
 
 Endpoints:
-- POST /api/process - Process requirements
 - GET /api/health - Provider health status
-- GET /api/stats - Usage statistics
-- POST /api/batch - Batch processing
+- GET /api/stats - Uptime and available providers
+- GET /api/analytics - Totals and breakdowns over saved test-generation runs
+- GET /api/providers - Provider availability and health
 - POST /api/benchmark - Run benchmark tests
 - GET /api/datasets, /api/templates, /api/models - Choices for test generation
 - POST /api/test-generation - Generate test cases for a dataset (background job)
@@ -18,10 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
-import time
 from datetime import datetime
 
-from backend.pipeline import REPipeline
 from backend.llm_interface_v2 import get_provider_health_status, get_available_providers
 from backend.config import AppConfig
 from backend.llm_interface import OLLAMA_MODEL, list_ollama_models
@@ -31,7 +29,6 @@ from backend.llm_interface_v2 import (
 from backend.prompt_engineering import TEMPLATES
 from backend.test_generation import get_job, list_datasets, request_stop, start_job
 from backend.analytics import collect_run_stats
-from backend.requirement_tasks import run_task
 import json as _json
 import os as _os
 
@@ -60,36 +57,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize RE Pipeline
-pipeline = REPipeline()
-
 # ============================================================================
 # Request/Response Models
 # ============================================================================
-
-class RequirementInput(BaseModel):
-    """Input model for single requirement"""
-    req_id: str
-    text: str
-    task_type: Optional[str] = "extraction"
-    dataset: Optional[str] = "Pure"
-    provider: Optional[str] = "ollama"     # ollama, hf, gemini, groq (or openai, claude, auto)
-    llm_model: Optional[str] = None        # model for that provider; None = the .env default
-
-class BatchRequirementInput(BaseModel):
-    """Input model for batch processing"""
-    requirements: List[RequirementInput]
-
-class RequirementResponse(BaseModel):
-    """Response model for processed requirement"""
-    req_id: str
-    input_text: str
-    status: str
-    result: Dict[str, Any]
-    provider_used: str
-    tokens_used: int
-    processing_time_ms: float
-    timestamp: str
 
 class HealthStatus(BaseModel):
     """Provider health status"""
@@ -104,8 +74,6 @@ class APIStatus(BaseModel):
     timestamp: str
     available_providers: List[str]
     provider_health: Dict[str, Any]
-    total_requests: int
-    total_tokens: int
 
 class BenchmarkInput(BaseModel):
     """Input model for benchmark testing"""
@@ -135,8 +103,6 @@ class BenchmarkResult(BaseModel):
 
 class APIStats:
     def __init__(self):
-        self.total_requests = 0
-        self.total_tokens = 0
         self.start_time = datetime.now()
 
 stats = APIStats()
@@ -167,84 +133,17 @@ async def get_health():
             timestamp=datetime.now().isoformat(),
             available_providers=available,
             provider_health=health_status,
-            total_requests=stats.total_requests,
-            total_tokens=stats.total_tokens
         )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/process", response_model=RequirementResponse)
-async def process_requirement(input_data: RequirementInput):
-    """Run one requirement through the chosen task and provider."""
-    start_time = time.time()
-    model = None if input_data.llm_model in (None, "", "auto") else input_data.llm_model
-    try:
-        result, tokens, provider_used = run_task(
-            input_data.task_type or "extraction", input_data.req_id, input_data.text,
-            input_data.provider or "ollama", model,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ConnectionError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        logger.error(f"Processing failed for {input_data.req_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-    processing_time = (time.time() - start_time) * 1000
-    stats.total_requests += 1
-    stats.total_tokens += tokens
-    logger.info(f"Processed {input_data.req_id} with {provider_used} in {processing_time:.2f}ms")
-
-    return RequirementResponse(
-        req_id=input_data.req_id,
-        input_text=input_data.text,
-        status="success",
-        result=result,
-        provider_used=provider_used,
-        tokens_used=tokens,
-        processing_time_ms=processing_time,
-        timestamp=datetime.now().isoformat(),
-    )
-
-
-@app.post("/api/batch")
-async def batch_process(input_data: BatchRequirementInput):
-    """Process multiple requirements"""
-    try:
-        results = []
-        
-        for req in input_data.requirements:
-            try:
-                result = await process_requirement(req)
-                results.append(result)
-            except Exception as e:
-                logger.error(f"Batch processing failed for {req.req_id}: {e}")
-                results.append({
-                    "req_id": req.req_id,
-                    "error": str(e)
-                })
-        
-        return {
-            "total": len(results),
-            "successful": sum(1 for r in results if "error" not in r),
-            "results": results
-        }
-    
-    except Exception as e:
-        logger.error(f"Batch processing failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/stats")
 async def get_stats():
-    """Get API usage statistics"""
+    """Get API uptime and available providers"""
     uptime = datetime.now() - stats.start_time
-    
+
     return {
-        "total_requests": stats.total_requests,
-        "total_tokens": stats.total_tokens,
-        "avg_tokens_per_request": stats.total_tokens / max(1, stats.total_requests),
         "uptime_seconds": uptime.total_seconds(),
         "available_providers": get_available_providers()
     }
@@ -258,8 +157,6 @@ async def get_analytics():
         logger.error(f"Analytics failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     report["live"] = {
-        "total_requests": stats.total_requests,
-        "total_tokens": stats.total_tokens,
         "uptime_seconds": (datetime.now() - stats.start_time).total_seconds(),
     }
     return report
@@ -426,8 +323,6 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     logger.info("TestDesignerAI API shutting down...")
-    logger.info(f"Total requests processed: {stats.total_requests}")
-    logger.info(f"Total tokens used: {stats.total_tokens}")
 
 # ============================================================================
 # Run the API

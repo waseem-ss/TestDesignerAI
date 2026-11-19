@@ -149,7 +149,15 @@ def make_generator(template_name: str, provider: str = "ollama",
     if provider == "ollama" and model is None:
         from backend.pipeline import REPipeline  # heavy import: only when needed
         pipeline = REPipeline()
-        return lambda record: pipeline.generate_test_cases(record, template=template.name)
+
+        def generate_default(record: Dict[str, str]) -> List[str]:
+            cases = pipeline.generate_test_cases(record, template=template.name, provider="ollama")
+            if not cases:
+                # Same rule as the explicit-model path: an empty reply fails the row.
+                raise RuntimeError("the model returned no test cases")
+            return cases
+
+        return generate_default
 
     from backend.pipeline import parse_test_cases
     temperature = AppConfig.get_model_config(ModelType.GPT_4O).temperature
